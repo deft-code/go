@@ -1137,6 +1137,7 @@ void	redeclare(Sym *s, char *where);
 void	testdclstack(void);
 Type*	tointerface(NodeList *l);
 Type*	tostruct(NodeList *l);
+Node*	type_aliasdcl(Node *alias, Node *orig);
 Node*	typedcl0(Sym *s);
 Node*	typedcl1(Node *n, Node *t, int local);
 Node*	typenod(Type *t);

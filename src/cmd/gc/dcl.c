@@ -777,6 +777,36 @@ typedcl1(Node *n, Node *t, int local)
 	return nod(ODCLTYPE, n, N);
 }
 
+Node*
+type_aliasdcl(Node* aliasnode, Node* orignode)
+{
+  print("type alias code %p %p", aliasnode, orignode);
+  return N;
+
+  /*Sym *alias, *orig;*/
+  /*char *pkgerror;*/
+
+
+  /*orig = lookup(orignode->sym->name);*/
+
+  /*alias = lookup(orig->name);*/
+  /*if(alias->def != N) {*/
+  /*  pkgerror = smprint("TODO(nickte)");*/
+  /*  redeclare(alias, pkgerror);*/
+  /*  return N;*/
+  /*}*/
+
+  /*alias->def = orig->def;*/
+  /*alias->block = orig->block;*/
+  /*//TODO(nickte) which package should go here?*/
+  /*alias->def->pack = localpkg;*/
+  /*alias->origpack = orig->def->pack;*/
+
+  /*aliasnode->Sym = alias;*/
+
+  /*return nod(ODCLTYPE, aliasnode, N);*/
+}
+
 /*
  * structs, functions, and methods.
  * they don't belong here, but where do they belong?

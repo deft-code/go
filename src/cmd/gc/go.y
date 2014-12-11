@@ -67,12 +67,14 @@ static void fixlbrace(int);
 %type	<node>	simple_stmt
 %type	<node>	switch_stmt uexpr
 %type	<node>	xfndcl typedcl start_complit
+%type	<node>	type_aliasdcl
 
 %type	<list>	xdcl fnbody fnres loop_body dcl_name_list
 %type	<list>	new_name_list expr_list keyval_list braced_keyval_list expr_or_type_list xdcl_list
 %type	<list>	oexpr_list caseblock_list elseif elseif_list else stmt_list oarg_type_list_ocomma arg_type_list
 %type	<list>	interfacedcl_list vardcl vardcl_list structdcl structdcl_list
 %type	<list>	common_dcl constdcl constdcl1 constdcl_list typedcl_list
+%type	<list>	type_aliasdcl_list
 
 %type	<node>	convtype comptype dotdotdot
 %type	<node>	indcl interfacetype structtype ptrtype
@@ -348,6 +350,18 @@ common_dcl:
 	{
 		$$ = nil;
 	}
+|	LTYPE '!' type_aliasdcl
+	{
+		$$ = list1($3);
+	}
+|	LTYPE '!' '(' type_aliasdcl_list osemi ')'
+	{
+		$$ = $4;
+	}
+|	LTYPE '!' '(' ')'
+	{
+		$$ = nil;
+	}
 
 lconst:
 	LCONST
@@ -403,6 +417,12 @@ typedcl:
 	typedclname ntype
 	{
 		$$ = typedcl1($1, $2, 1);
+	}
+
+type_aliasdcl:
+	dcl_name ntype
+	{
+    $$ = type_aliasdcl($1, $2);
 	}
 
 simple_stmt:
@@ -1524,6 +1544,16 @@ typedcl_list:
 		$$ = list1($1);
 	}
 |	typedcl_list ';' typedcl
+	{
+		$$ = list($1, $3);
+	}
+
+type_aliasdcl_list:
+	type_aliasdcl
+	{
+		$$ = list1($1);
+	}
+|	type_aliasdcl_list ';' type_aliasdcl
 	{
 		$$ = list($1, $3);
 	}
