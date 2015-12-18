@@ -147,6 +147,58 @@ func TestNonCanonicalZero(t *testing.T) {
 	}
 }
 
+type rands struct {
+	b       []byte
+	rands   []uint64
+	offsets []int
+	ls      []int
+}
+
+func newRands(n int, rander func() uint64) *Rands {
+	r := new(rands)
+	for i := 0; i < n; i++ {
+		x := rander()
+
+		r.rands = append(r.rands, x)
+		b = r.b
+
+		b = append(b, 0, 0, 0, 0, 0)
+		size := len(b)
+		r.offsets = append(r.offsets, size)
+		l := binary.PutVarint(b[size:], x)
+		r.ls = append(r.ls, l)
+		r.b = b[:size+1]
+	}
+	return r
+}
+
+func BenchUvarint32(b *testing.B) {
+	b.StopTimer()
+	r := newRands(10000, func() uint64 { return uint64(rand.Uint32) })
+	b.SetBytes(len(r.b))
+	b.StartTimer()
+	for i, want := range r.rands {
+		got, _ := Uvarint(r.b[r.offset[i]:])
+		if got != want {
+			b.Errorf("got %x, want %x\n", got, want)
+		}
+	}
+}
+
+func BenchUvarint32(b *testing.B) {
+	b.StopTimer()
+	z := rand.NewZipf
+	r := newRands(10000, func() uint64 { return uint64(rand.Uint32) })
+	b.SetBytes(len(r.b))
+	b.StartTimer()
+	for i, want := range r.rands {
+		got, _ := Uvarint(r.b[r.offset[i]:])
+		if got != want {
+			b.Errorf("got %x, want %x\n", got, want)
+		}
+	}
+}
+
 func BenchmarkPutUvarint32(b *testing.B) {
 	buf := make([]byte, MaxVarintLen32)
 	b.SetBytes(4)
