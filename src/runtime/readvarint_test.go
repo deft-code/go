@@ -1,4 +1,4 @@
-package readvarint_test
+package readvarint
 
 import (
 	"encoding/binary"
@@ -11,7 +11,7 @@ func lib(p []byte) (newp []byte, val uint32) {
 	return p[i:], uint32(x)
 }
 
-func plain(p []byte) (newp []byte, val uint32) {
+func iter(p []byte) (newp []byte, val uint32) {
 	var v, shift uint32
 	for {
 		b := p[0]
@@ -25,154 +25,109 @@ func plain(p []byte) (newp []byte, val uint32) {
 	return p, v
 }
 
-func clean(p []byte) (newp []byte, val uint32) {
-	var v uint32
-
-	v |= uint32(p[0]&0x7F) << (0 * 7)
-	if p[0] < 128 {
-		return p[0+1:], v
+func loop(p []byte) (newp []byte, val uint32) {
+  v := uint(p[0])
+  i := uint(1)
+  for ; i<5; i++ {
+    shift := uint(7*i)
+    limit := uint(0x1) << shift
+    if v < limit {
+      break
+    }
+    v &^= limit
+    v |= uint(p[i]) << shift
 	}
-
-	v |= uint32(p[1]&0x7F) << (1 * 7)
-	if p[1] < 128 {
-		return p[1+1:], v
-	}
-
-	v |= uint32(p[2]&0x7F) << (2 * 7)
-	if p[2] < 128 {
-		return p[2+1:], v
-	}
-
-	v |= uint32(p[3]&0x7F) << (3 * 7)
-	if p[3] < 128 {
-		return p[3+1:], v
-	}
-
-	v |= uint32(p[4]&0x7F) << (4 * 7)
-	if p[4] < 128 {
-		return p[4+1:], v
-	}
-
-	return p[5:], v
+	return p[i:], uint32(v)
 }
 
-func magic(p []byte) (newp []byte, val uint32) {
-	v := uint32(p[0] & 0x7F)
-	if p[0] < 128 {
-		return p[1:], v
+
+func unroll(p []byte) (newp []byte, val uint32) {
+	v := uint(p[0])
+	if v <= 0x7F {
+		return p[1:], uint32(v)
 	}
 
-	v |= uint32(p[1]&0x7F) << 7
-	if p[1] < 128 {
-		return p[2:], v
+	v &= 0x7F
+	v |= uint(p[1]) << 7
+
+	if v <= 0x3FFF {
+		return p[2:], uint32(v)
 	}
 
-	v |= uint32(p[2]&0x7F) << 14
-	if p[2] < 128 {
-		return p[3:], v
+	v &= 0x3FFF
+	v |= uint(p[2]) << 14
+
+	if v <= 0x1FFFFF {
+		return p[3:], uint32(v)
 	}
 
-	v |= uint32(p[3]&0x7F) << 21
-	if p[3] < 128 {
-		return p[4:], v
+	v &= 0x1FFFFF
+	v |= uint(p[3]) << 21
+
+	if v <= 0xFFFFFFF {
+		return p[4:], uint32(v)
 	}
 
-	return p[5:], v | (uint32(p[4]&0x7F) << 28)
-}
+	v &= 0xFFFFFFF
+	v |= uint(p[4]) << 28
 
-func magic2(p []byte) (newp []byte, val uint32) {
-	v := uint32(p[0] & 0x7F)
-	if p[0] < 128 {
-		return p[0+1:], v
-	}
-
-	v |= uint32(p[1]&0x7F) << 7
-	if p[1] < 128 {
-		return p[1+1:], v
-	}
-
-	v |= uint32(p[2]&0x7F) << (2 * 7)
-	if p[2] < 128 {
-		return p[2+1:], v
-	}
-
-	v |= uint32(p[3]&0x7F) << (3 * 7)
-	if p[3] < 128 {
-		return p[3+1:], v
-	}
-
-	return p[4+1:], v | (uint32(p[4]&0x7F) << (4 * 7))
-}
-
-func magic3(p []byte) (newp []byte, val uint32) {
-	if p[0] < 128 {
-		return p[1:], uint32(p[0] & 0x7F)
-	}
-
-	if p[1] < 128 {
-		return p[2:], uint32(p[0]&0x7F) | uint32(p[1]&0x7F)<<7
-	}
-
-	if p[2] < 128 {
-		return p[3:], uint32(p[0]&0x7F) | uint32(p[1]&0x7F)<<7 | uint32(p[2]&0x7F)<<14
-	}
-
-	if p[3] < 128 {
-		return p[4:], uint32(p[0]&0x7F) | uint32(p[1]&0x7F)<<7 | uint32(p[2]&0x7F)<<14 | uint32(p[3]&0x7F)<<21
-	}
-
-	return p[5:], uint32(p[0]&0x7F) | uint32(p[1]&0x7F)<<7 | uint32(p[2]&0x7F)<<14 | uint32(p[3]&0x7F)<<21 | uint32(p[4]&0x7F)<<28
+	return p[5:], uint32(v)
 }
 
 var randBytes []byte
 var randInts []uint32
 
 func init() {
-	var scratch [5]byte
-	for i := 0; i < 1000; i++ {
+	for i := 0; i < 10000; i++ {
 		x := rand.Uint32()
 		randInts = append(randInts, x)
-		l := binary.PutUvarint(scratch[:], uint64(x))
-		randBytes = append(randBytes, scratch[:l]...)
+    randBytes = put(randBytes, x)
 	}
 }
 
-func ints2varint(ints []uint32) []byte {
-	var b []byte
-	scratch := make([]byte, 5)
-	for _, i := range ints {
-		l := binary.PutUvarint(scratch, uint64(i))
-		varint := scratch[:l]
-		b = append(b, varint...)
-	}
-
-	return append(b, 0)
+func put( b []byte, x uint32) []byte {
+  size := len(b)
+    b = append(b, 0, 0, 0, 0 ,0)
+    l := binary.PutUvarint(b[size:], uint64(x))
+    return b[:size+l]
 }
 
 func TestReadVarint(t *testing.T) {
 	var data = []struct {
 		name string
-		f    func([]byte) ([]byte, uint32)
+		readvarint    func([]byte) ([]byte, uint32)
 	}{
 		{"lib", lib},
-		{"plain", plain},
-		{"clean", clean},
-		{"magic", magic},
-		{"magic2", magic2},
-		{"magic3", magic3},
+		{"iter", iter},
+    {"loop", loop},
+		{"unroll", unroll},
 	}
 
-	ints := []uint32{0, 1, 2, 3, 4, 5, 0xFE, 0xFF, 0x100, 0xFFFE, 0xFFFF, 0x10000, 0xFFFFFFFF}
+	ints := []uint32{
+		0, 1, 2, 3, 4, 5,
+		0xF, 0x10,
+		0x7E, 0x7F, 0x80, 0x81,
+		0xFF, 0x100,
+		0x3FFE, 0x3FFF, 0x4000, 0x4001,
+		0xFFFF, 0x10000,
+		0x1FFFFE, 0x1FFFFF, 0x200000, 0x200001,
+		0xFFFFFF, 0x1000000,
+		0xFFFFFFE, 0xFFFFFFF, 0x10000000, 0x10000001,
+		0xFFFFFFFE, 0xFFFFFFFF,
+	}
 
-	bytes := ints2varint(ints)
+  var bytes []byte
+  for _, x := range ints {
+    bytes = put(bytes, x)
+  }
 
 	for _, tt := range data {
 		b := bytes
 		for _, want := range ints {
 			var got uint32
-			b, got = tt.f(b)
+			b, got = tt.readvarint(b)
 			if got != want {
-				t.Errorf("%s: %d(%x) != %d(%x)", tt.name, want, want, got, got)
+				t.Errorf("%s: %d(%x) != %d(%x)", tt.name, got, got, want, want)
 			}
 		}
 	}
@@ -191,12 +146,12 @@ func BenchmarkLib(b *testing.B) {
 	}
 }
 
-func BenchmarkPlain(b *testing.B) {
+func BenchmarkIter(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		bytes := randBytes
 		for _, want := range randInts {
 			var got uint32
-			bytes, got = plain(bytes)
+			bytes, got = iter(bytes)
 			if got != want {
 				b.Fatalf("%d(%x) != %d(%x)", got, got, want, want)
 			}
@@ -204,12 +159,12 @@ func BenchmarkPlain(b *testing.B) {
 	}
 }
 
-func BenchmarkClean(b *testing.B) {
+func BenchmarkLoop(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		bytes := randBytes
 		for _, want := range randInts {
 			var got uint32
-			bytes, got = clean(bytes)
+			bytes, got = loop(bytes)
 			if got != want {
 				b.Fatalf("%d(%x) != %d(%x)", got, got, want, want)
 			}
@@ -217,38 +172,12 @@ func BenchmarkClean(b *testing.B) {
 	}
 }
 
-func BenchmarkMagic(b *testing.B) {
+func BenchmarkUnroll(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		bytes := randBytes
 		for _, want := range randInts {
 			var got uint32
-			bytes, got = magic(bytes)
-			if got != want {
-				b.Fatalf("%d(%x) != %d(%x)", got, got, want, want)
-			}
-		}
-	}
-}
-
-func BenchmarkMagic2(b *testing.B) {
-	for i := 0; i < b.N; i++ {
-		bytes := randBytes
-		for _, want := range randInts {
-			var got uint32
-			bytes, got = magic2(bytes)
-			if got != want {
-				b.Fatalf("%d(%x) != %d(%x)", got, got, want, want)
-			}
-		}
-	}
-}
-
-func BenchmarkMagic3(b *testing.B) {
-	for i := 0; i < b.N; i++ {
-		bytes := randBytes
-		for _, want := range randInts {
-			var got uint32
-			bytes, got = magic3(bytes)
+			bytes, got = unroll(bytes)
 			if got != want {
 				b.Fatalf("%d(%x) != %d(%x)", got, got, want, want)
 			}
